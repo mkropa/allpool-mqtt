@@ -1,0 +1,84 @@
+# =============================================================================
+# AllPool-MQTT – Konfiguration
+# Nach der Installation liegt diese Datei unter /etc/allpool-mqtt/config.yaml
+# Änderungen werden nach  sudo systemctl restart allpool-mqtt  wirksam.
+# =============================================================================
+
+serial:
+  # Tipp: stabiler als /dev/ttyUSB0 ist der Pfad unter /dev/serial/by-id/
+  #       (ls -l /dev/serial/by-id/) – der ändert sich nicht, wenn weitere
+  #       USB-Geräte angesteckt werden.
+  port: /dev/ttyUSB0
+  baudrate: 19200          # laut PAUSCH fix 19200 8N1
+  checksum: true           # Prüfsumme senden und prüfen (empfohlen)
+  start_char: "#"          # "#" oder "%" (ab FW 4.13)
+  retries: 3               # Wiederholungen bei Timeout/Prüfsummenfehler (je mit größerem Abstand)
+
+  # Selbstlernende Zeitsteuerung: Das Programm sucht den kleinsten Abstand
+  # zwischen Antwort und nächstem Befehl, bei dem das ALLPOOL zuverlässig
+  # antwortet, und merkt ihn sich (state_file). Scheitert eine Anfrage, wird
+  # sie automatisch mit größerem Abstand wiederholt.
+  adaptive_timing: true
+  start_gap: 0.02          # Startwert beim allerersten Start (s)
+  min_gap: 0.01            # nie kürzer (PAUSCH: min. 10 ms)
+  max_gap: 0.5             # nie länger
+  gap_shrink_after: 25     # nach so vielen Erfolgen in Folge wird der Abstand probeweise verkürzt
+  timeout: 1.0             # max. Wartezeit auf eine Antwortzeile (s)
+  min_timeout: 0.25        # gelernter Timeout wird nie kürzer
+  max_failures: 3          # so viele Anfragen in Folge ohne Antwort -> "getrennt"
+  reconnect_interval: 10   # Sekunden zwischen Wiederverbindungsversuchen
+
+mqtt:
+  host: 192.168.1.10       # IP/Name deines MQTT-Brokers (z.B. Home Assistant mit Mosquitto-Add-on)
+  port: 1883
+  username: allpool        # MQTT-Benutzer (in HA: Einstellungen > Personen > Benutzer anlegen)
+  password: geheim
+  client_id: allpool-mqtt
+  base_topic: allpool      # alle Topics beginnen mit allpool/...
+  tls: false
+  # ca_certs: /etc/ssl/certs/ca-certificates.crt
+
+homeassistant:
+  discovery_prefix: homeassistant
+  node_id: allpool         # Teil der unique_id – nach dem ersten Start nicht mehr ändern
+  device_name: AllPool     # Gerätename in Home Assistant
+
+polling:
+  min_interval: 5          # kleinstes erlaubtes Abfrageintervall in s (0 = nur beim Start)
+  max_interval: 86400      # größtes erlaubtes Abfrageintervall in s
+  max_bus_load: 0.5        # max. geschätzte Auslastung der Schnittstelle durch Polling (0.5 = 50 %)
+  command_timeout: 120     # Befehle, die so lange nicht gesendet werden konnten, werden verworfen
+  query_limits: true       # beim Start Min/Max der Sollwerte vom ALLPOOL abfragen (?l / ?h)
+  allow_raw_write: false   # schreibende Rohbefehle über allpool/raw/request erlauben
+
+state_file: /var/lib/allpool-mqtt/state.json   # hier werden die Intervalle aus HA gespeichert
+log_level: INFO            # DEBUG zeigt jede serielle Zeile
+
+# -----------------------------------------------------------------------------
+# Werte anpassen (optional). Alle Werte siehe:  allpool_mqtt.py --list
+# Mögliche Felder: enabled, interval, name, icon, min, max, step, unit, options …
+# Das Intervall hier ist nur der Startwert – sobald du es in Home Assistant
+# änderst, gilt der dort gesetzte (gespeicherte) Wert.
+# -----------------------------------------------------------------------------
+values:
+  # Temperatur an den Universaleingängen nur aktivieren, wenn ein Fühler dran ist
+  # temperatur_universaleingang_1: {enabled: true}
+  # temperatur_universaleingang_3: {enabled: true}
+
+  # Nicht genutzte Ausgänge/Funktionen ausblenden
+  # universalausgang_4: {enabled: false}
+  # universalausgang_5: {enabled: false}
+  # whirlpool_modus: {enabled: false}
+  # heizung_soll_whirlpool: {enabled: false}
+  # solar_max_whirlpool: {enabled: false}
+
+  # Statistikwerte aus der Menüstruktur (FW 4.2.x, Format nicht dokumentiert)
+  # stat_filterzeit: {enabled: true}
+  # stat_solarenergie: {enabled: true}
+
+  # Eigener, zusätzlicher Wert (z.B. aus der Menüstruktur):
+  # dosier_anzeige:
+  #   id: 36020
+  #   name: Dosierung Verbrauch
+  #   kind: text_sensor          # sensor | temperature | binary | enum_sensor | text_sensor
+  #   interval: 3600             # select | number | switch | text  (schreibbar)

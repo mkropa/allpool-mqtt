@@ -1,0 +1,24 @@
+[Unit]
+Description=AllPool <-> MQTT Bridge (Home Assistant)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=allpool
+Group=allpool
+SupplementaryGroups=dialout
+ExecStart=/opt/allpool-mqtt/venv/bin/python /opt/allpool-mqtt/allpool_mqtt.py --config /etc/allpool-mqtt/config.yaml
+Restart=always
+RestartSec=10
+StateDirectory=allpool-mqtt
+Environment=PYTHONUNBUFFERED=1
+
+# Härtung
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

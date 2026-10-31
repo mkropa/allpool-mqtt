@@ -1,0 +1,7 @@
+# Echte Konfiguration enthält das MQTT-Passwort – nie hochladen!
+config.yaml
+state.json
+__pycache__/
+*.pyc
+venv/
+.venv/
