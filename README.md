@@ -65,15 +65,32 @@ keine YAML-Konfiguration schreiben.
 
 ## Installation auf dem Raspberry Pi
 
+Voraussetzung: Raspberry Pi OS (oder ein anderes Debian-basiertes Linux) mit
+Netzwerkzugang, der USB-Seriell-Adapter steckt am Pi und am Extender-Port des
+ALLPOOL.
+
+Per SSH auf dem Pi anmelden und:
+
 ```bash
-# Ordner auf den Pi kopieren, z.B. per scp:
-scp -r allpool-mqtt pi@raspberrypi:~
-ssh pi@raspberrypi
-cd ~/allpool-mqtt
-chmod +x install.sh
+sudo apt update && sudo apt install -y git
+git clone https://github.com/mkropa/allpool-mqtt.git
+cd allpool-mqtt
 sudo ./install.sh
 sudo nano /etc/allpool-mqtt/config.yaml     # MQTT-Broker, Benutzer, Passwort, Port
 ```
+
+`install.sh` legt einen Systembenutzer `allpool` an, installiert das Programm
+nach `/opt/allpool-mqtt` (mit eigener Python-Umgebung), kopiert die
+Beispielkonfiguration nach `/etc/allpool-mqtt/config.yaml` und richtet den
+systemd-Dienst `allpool-mqtt` ein. Der heruntergeladene Ordner
+`~/allpool-mqtt` dient danach nur noch als Quelle für Updates.
+
+> **Privates Repository?** Dann fragt `git clone` nach Benutzername und
+> Passwort. Als Passwort brauchst du einen *Personal Access Token*
+> (GitHub → Settings → Developer settings → Personal access tokens →
+> Fine-grained tokens, Zugriff nur auf dieses Repository, Berechtigung
+> *Contents: Read-only*). Damit Git ihn sich merkt:
+> `git config --global credential.helper store` vor dem Clonen ausführen.
 
 Vor dem ersten Start lohnt sich ein direkter Test ohne MQTT:
 
@@ -94,8 +111,32 @@ journalctl -u allpool-mqtt -f
 > `--dump` und `--raw` öffnen die serielle Schnittstelle selbst. Läuft der
 > Dienst schon, vorher `sudo systemctl stop allpool-mqtt`.
 
-**Update:** neue Dateien auf den Pi kopieren und erneut `sudo ./install.sh`
-ausführen. Deine `config.yaml` bleibt dabei unverändert.
+### Update
+
+```bash
+cd ~/allpool-mqtt
+git pull
+sudo ./install.sh
+```
+
+`install.sh` erkennt die bestehende Installation, aktualisiert Programm und
+Python-Pakete und startet den Dienst neu. Deine `/etc/allpool-mqtt/config.yaml`
+und die gelernten Werte (Abfrageintervalle, Sendeabstand) bleiben unverändert.
+Neue Einstellungen aus späteren Versionen stehen in `config.example.yaml`. Ohne
+Eintrag in deiner `config.yaml` gelten automatisch die Standardwerte.
+
+### Deinstallation
+
+```bash
+sudo systemctl disable --now allpool-mqtt
+sudo rm -rf /opt/allpool-mqtt /etc/allpool-mqtt /var/lib/allpool-mqtt \
+            /etc/systemd/system/allpool-mqtt.service /usr/local/bin/allpool-mqtt
+sudo systemctl daemon-reload
+sudo userdel allpool
+```
+
+Die Entitäten in Home Assistant entfernst du danach unter *Einstellungen →
+Geräte & Dienste → MQTT → AllPool → Löschen*.
 
 ## Home Assistant
 
