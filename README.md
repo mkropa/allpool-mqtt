@@ -201,7 +201,7 @@ services → MQTT → AllPool → Delete*.
 ## Home Assistant
 
 1. Set up the MQTT broker if you don't have one yet: install the **Mosquitto
-   broker** add-on and add the **MQTT** integration.
+   broker** app and add the **MQTT** integration.
 2. Create a dedicated MQTT user for the bridge (see below) and enter it in
    `/etc/allpool-mqtt/config.yaml` under `mqtt:`.
 3. Start or restart the service (`sudo systemctl restart allpool-mqtt`). The
@@ -217,22 +217,43 @@ services → MQTT → AllPool → Delete*.
 Mosquitto supports any number of users. A separate login just for the ALLPOOL
 is a good idea; existing users stay unchanged.
 
-**Recommended: a login in the Mosquitto add-on.** This is a pure MQTT login
+**Recommended: a login in the Mosquitto app.** This is a pure MQTT login
 that cannot be used to sign in to Home Assistant.
 
-1. *Settings → Add-ons → Mosquitto broker → Configuration*
-2. Add an entry under **Logins** (existing entries stay as they are):
+1. *Settings → Apps → Mosquitto broker → Configuration → Edit in YAML*
+   (via the three-dot menu ⋮ of the options).
+2. Add a new entry with `username` and `password` to the `logins:` section.
+   Existing entries stay as they are. With one existing user the whole section
+   looks like this, for example:
    ```yaml
-   - username: allpool
+   logins:
+     - username: myexistinguser
+       password: ItsCurrentPassword
+     - username: allpool
+       password: ALongPassword
+   ```
+   If there were no logins so far (`logins: []`), replace that line with:
+   ```yaml
+   logins:
+     - username: allpool
+       password: ALongPassword
+   ```
+   Indentation matters: `- username` is indented by two spaces, `password`
+   lines up exactly below `username`. The other lines of the configuration
+   (`require_certificate`, `certfile`, `customize` …) stay unchanged.
+3. **Save** and **restart** the app.
+4. Enter user and password in `/etc/allpool-mqtt/config.yaml`:
+   ```yaml
+   mqtt:
+     username: allpool
      password: ALongPassword
    ```
-3. Save and **restart** the add-on.
 
 Alternatively, Mosquitto also accepts any Home Assistant user (*Settings →
 People → Users*). That user could then also sign in to the Home Assistant UI,
 which a device does not need.
 
-The names `homeassistant` and `addons` are reserved by the add-on and must
+The names `homeassistant` and `addons` are reserved by the app and must
 not be used.
 
 ### Where to find what

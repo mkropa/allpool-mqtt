@@ -29,9 +29,9 @@ serial:
   reconnect_interval: 10   # Sekunden zwischen Wiederverbindungsversuchen
 
 mqtt:
-  host: 192.168.1.10       # IP/Name deines MQTT-Brokers (z.B. Home Assistant mit Mosquitto-Add-on)
+  host: 192.168.1.10       # IP/Name deines MQTT-Brokers (z.B. Home Assistant mit Mosquitto-App)
   port: 1883
-  username: allpool        # eigener MQTT-Benutzer (Mosquitto-Add-on > Konfiguration > Logins, siehe README)
+  username: allpool        # eigener MQTT-Benutzer (Einstellungen > Apps > Mosquitto broker, siehe README)
   password: geheim
   client_id: allpool-mqtt
   base_topic: allpool      # alle Topics beginnen mit allpool/...

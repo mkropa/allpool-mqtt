@@ -200,7 +200,7 @@ Geräte & Dienste → MQTT → AllPool → Löschen*.
 
 ## Home Assistant
 
-1. Den MQTT-Broker einrichten, falls noch nicht vorhanden: Add-on **Mosquitto
+1. Den MQTT-Broker einrichten, falls noch nicht vorhanden: App **Mosquitto
    broker** installieren und die Integration **MQTT** hinzufügen.
 2. Einen eigenen MQTT-Benutzer für die Bridge anlegen (siehe unten) und in
    `/etc/allpool-mqtt/config.yaml` unter `mqtt:` eintragen.
@@ -217,22 +217,43 @@ Geräte & Dienste → MQTT → AllPool → Löschen*.
 Mosquitto erlaubt beliebig viele Benutzer. Ein eigener Zugang nur für das
 ALLPOOL ist sinnvoll, bestehende Benutzer bleiben unverändert.
 
-**Empfohlen: Login im Mosquitto-Add-on.** Das ist ein reiner MQTT-Zugang, mit
+**Empfohlen: Login in der Mosquitto-App.** Das ist ein reiner MQTT-Zugang, mit
 dem man sich nicht in Home Assistant anmelden kann.
 
-1. *Einstellungen → Add-ons → Mosquitto broker → Konfiguration*
-2. Unter **Logins** einen Eintrag ergänzen (vorhandene Einträge bleiben stehen):
+1. *Einstellungen → Apps → Mosquitto broker → Konfiguration → Edit YAML*
+   (über das Drei-Punkte-Menü ⋮ der Optionen).
+2. Im Abschnitt `logins:` einen neuen Eintrag mit `username` und `password`
+   ergänzen. Vorhandene Einträge bleiben stehen. Mit einem bestehenden
+   Benutzer sieht der ganze Abschnitt zum Beispiel so aus:
    ```yaml
-   - username: allpool
+   logins:
+     - username: meinbestehenderbenutzer
+       password: SeinBisherigesPasswort
+     - username: allpool
+       password: EinLangesPasswort
+   ```
+   Gab es bisher keine Logins (`logins: []`), ersetzt du diese Zeile durch:
+   ```yaml
+   logins:
+     - username: allpool
+       password: EinLangesPasswort
+   ```
+   Die Einrückung ist wichtig: `- username` steht zwei Leerzeichen eingerückt,
+   `password` genau unter `username`. Die übrigen Zeilen der Konfiguration
+   (`require_certificate`, `certfile`, `customize` …) bleiben unverändert.
+3. **Speichern** und die App **neu starten**.
+4. Benutzer und Passwort in `/etc/allpool-mqtt/config.yaml` eintragen:
+   ```yaml
+   mqtt:
+     username: allpool
      password: EinLangesPasswort
    ```
-3. Speichern und das Add-on **neu starten**.
 
 Alternativ akzeptiert Mosquitto auch jeden Home-Assistant-Benutzer
 (*Einstellungen → Personen → Benutzer*). Der könnte sich dann aber auch in
 die HA-Oberfläche einloggen, was für ein Gerät unnötig ist.
 
-Die Namen `homeassistant` und `addons` sind vom Add-on reserviert und dürfen
+Die Namen `homeassistant` und `addons` sind von der App reserviert und dürfen
 nicht verwendet werden.
 
 ### Wo finde ich was?
