@@ -1,173 +1,175 @@
 # AllPool-MQTT – PAUSCH ALLPOOL ↔ Home Assistant
 
-Bridge für den Raspberry Pi: liest die ALLPOOL-Schwimmbadsteuerung über das
-ASCII-Protokoll am Extender-Port (USB-Seriell, 19200 8N1) aus, schickt die Werte
-per MQTT an Home Assistant und führt Befehle aus Home Assistant aus.
-Home Assistant erkennt das Gerät automatisch (MQTT-Discovery), du musst dort
-keine YAML-Konfiguration schreiben.
+**English** | [Deutsch](README.de.md)
 
-## Was es kann
+A bridge for the Raspberry Pi: it reads the PAUSCH ALLPOOL pool controller via
+the ASCII protocol on its extender port (USB serial, 19200 8N1), publishes the
+values to Home Assistant via MQTT and executes commands sent from Home
+Assistant. Home Assistant discovers the device automatically (MQTT discovery),
+so no YAML configuration is needed there.
 
-- **Alle Werte aus der PAUSCH-Protokolltabelle** (FW 4.1), dazu einige IDs aus
-  der Menüstruktur (FW 4.2.13: Ferien-Datum, Statistik, Bad füllen). Die Werte
-  aus der Menüstruktur sind standardmäßig aus, weil PAUSCH ihr Format nicht
-  dokumentiert.
-- **Schreiben aus Home Assistant**: Betriebsarten (Filter, Solar, Heizung,
-  Rückspülung, Whirlpool, System, Nachfüllen) als Auswahlfeld, Sollwerte als
-  Zahl, Universalausgänge als Schalter, Ferienbeginn und -ende als Text.
-  Werte werden **vor** dem Senden geprüft (Bereich, Schrittweite, Datum).
-  Min/Max der Sollwerte werden beim Start direkt vom ALLPOOL gelesen (`?l`/`?h`).
-- **Eine Warteschlange mit Vorrang für Befehle**: Nur ein Thread spricht mit
-  der seriellen Schnittstelle. Befehle aus Home Assistant springen vor alle
-  wartenden Abfragen und werden spätestens nach der gerade laufenden Abfrage
-  gesendet. Befehle untereinander und Abfragen untereinander bleiben in ihrer
-  Reihenfolge (FIFO). Steht ein Wert schon zur Abfrage an, wird er nicht noch
-  einmal eingereiht.
-- **Rückmeldung an Home Assistant**, wenn ein Befehl nicht sofort gesendet
-  werden kann ("wartet auf 2 vorherige(n) Befehl(e) (Position 3)" oder
-  "wartet, Verbindung getrennt"). Danach kommt "ausgeführt und bestätigt",
-  "vom ALLPOOL abgelehnt: …" oder "verworfen". Das alles steht im Sensor
-  **Letzte Meldung** und im Event-Topic.
-- **Rückprüfung nach jedem Schreiben**: Direkt nach jedem Schreibbefehl wird
-  der Wert sofort wieder vom ALLPOOL gelesen (vor allen anderen Abfragen). Erst
-  dieser zurückgelesene Wert wird an Home Assistant geschickt. Weicht er vom
-  gesetzten Wert ab, kommt eine Warnung ("auf Auto gesetzt, das ALLPOOL meldet
-  beim Zurücklesen aber Aus"). Auch nach einem abgelehnten Befehl wird
-  zurückgelesen, damit HA wieder den echten Wert zeigt.
-- **Abfrageintervall pro Wert in Home Assistant einstellbar** (Konfigurations-
-  Entität "Abfrageintervall …"). Es sind nur sinnvolle Werte erlaubt:
-  - `0` = nur beim Start bzw. bei "Alle Werte aktualisieren"
-  - sonst `min_interval` … `max_interval` (Standard 5 s … 24 h)
-  - Abgelehnt wird auch, wenn die **geschätzte Auslastung** der seriellen
-    Schnittstelle durch das Polling über `max_bus_load` (Standard 50 %)
-    steigen würde. Die Schätzung nutzt die tatsächlich gemessene Antwortzeit
-    des ALLPOOL.
-  - Bei Ablehnung springt der Wert in HA zurück und "Letzte Meldung" sagt, warum.
-  - Die Intervalle werden gespeichert und überstehen einen Neustart.
-- **Selbstlernende Geschwindigkeit**: Das Programm misst die Antwortzeit des
-  ALLPOOL und lernt den kleinsten Abstand zwischen Antwort und nächstem Befehl,
-  bei dem es noch zuverlässig antwortet. Scheitert eine Anfrage (keine oder
-  kaputte Antwort), wird sie automatisch mit größerem Abstand wiederholt. Nach
-  vielen Erfolgen in Folge wird der Abstand vorsichtig wieder verkürzt, aber
-  nicht unter den Wert, der zuletzt gescheitert ist. Der gelernte Wert wird
-  gespeichert und beim nächsten Start sofort verwendet. Damit eine verspätete
-  Antwort nie einem falschen Wert zugeordnet wird, wartet das Programm nach
-  einem Fehlschlag die volle Timeout-Zeit ab und leert den Empfangspuffer.
-  In HA siehst du unter *Diagnose*: **Sendeabstand**, **Antwortzeit ALLPOOL**
-  und **Wiederholungen**.
-- **Robust**: Prüfsummen (XOR laut PAUSCH), Wiederholungen, automatisches
-  Wiederverbinden mit MQTT und seriellem Port. Antwortet das ALLPOOL nicht mehr
-  (stromlos, Kabel gezogen), wird die Verbindung als getrennt gemeldet und die
-  Entitäten werden in HA "nicht verfügbar". Wartende Befehle bleiben bis
-  `command_timeout` erhalten und werden nach dem Wiederverbinden ausgeführt.
-- Defekte Temperaturfühler (ALLPOOL antwortet `Xl`/`Xh`) erscheinen als
-  "unbekannt", der Grund steht in den Attributen.
+> Entity names in Home Assistant are in German (e.g. "Filter Modus",
+> "Badtemperatur"), matching the ALLPOOL menus. You can rename them in Home
+> Assistant or via `name:` in the `values:` section of `config.yaml`.
 
-## Hardware: ALLPOOL an den Raspberry Pi anschließen
+## Features
 
-Das ALLPOOL hat auf der rechten Geräteseite den **Extender-Port**, eine
-wasserdichte, 3-polige **M8-Buchse**. Dort liegt eine serielle Schnittstelle mit
-**TTL-Pegel 5 V** (kein echtes RS232 mit ±12 V). Am einfachsten verbindest du
-sie mit einem **FTDI USB-TTL-Kabel in der 5-V-Ausführung (TTL-232R-5V)** und
-einem M8-Kabel mit Stecker. Fertige Lösungen von PAUSCH sind das Kabel
-**M8USB** (direkt USB) und das Interface **M8RS232** (echtes RS232 auf DSUB-9).
+- **All values from the PAUSCH protocol table** (firmware 4.1), plus some IDs
+  from the menu structure (firmware 4.2.13: holiday dates, statistics, pool
+  filling). The menu-structure values are disabled by default because PAUSCH
+  does not document their format.
+- **Writing from Home Assistant**: operating modes (filter, solar, heating,
+  backwash, whirlpool, system, refill) as select entities, set points as
+  numbers, universal outputs as switches, holiday start and end as text.
+  Values are validated **before** sending (range, step, date). Min/max of the
+  set points are read from the ALLPOOL at start-up (`?l`/`?h`).
+- **One queue with priority for commands**: only one thread talks to the
+  serial port. Commands from Home Assistant jump ahead of all waiting polls and
+  are sent right after the poll currently running. Commands among themselves
+  and polls among themselves keep their order (FIFO). A value already waiting
+  to be polled is not queued twice.
+- **Feedback to Home Assistant** when a command cannot be sent immediately
+  ("waiting for 2 previous commands (position 3)" or "waiting, connection
+  lost"), followed by "executed and confirmed", "rejected by the ALLPOOL: …" or
+  "discarded". All of this appears in the sensor **Letzte Meldung** (last
+  message) and on the event topic. The messages themselves are in German.
+- **Read-back after every write**: right after each write command the value is
+  read back from the ALLPOOL (before any other poll). Only this read-back value
+  is sent to Home Assistant. If it differs from the value that was set, a
+  warning is issued. After a rejected command the value is read back as well,
+  so Home Assistant shows the real value again.
+- **Poll interval per value, adjustable in Home Assistant** (configuration
+  entity "Abfrageintervall …"). Only sensible values are accepted:
+  - `0` = only at start-up or on "Alle Werte aktualisieren" (refresh all)
+  - otherwise `min_interval` … `max_interval` (default 5 s … 24 h)
+  - A value is also rejected if the **estimated load** of the serial port
+    caused by polling would exceed `max_bus_load` (default 50 %). The estimate
+    uses the ALLPOOL's actually measured response time.
+  - When rejected, the value in Home Assistant jumps back and "Letzte Meldung"
+    explains why.
+  - Intervals are stored and survive a restart.
+- **Self-learning speed**: the program measures the ALLPOOL's response time
+  and learns the shortest gap between a response and the next command at which
+  the device still answers reliably. If a request fails (no or corrupt
+  response), it is retried automatically with a larger gap. After many
+  successes in a row, the gap is carefully shortened again, but never below
+  the value that failed last. The learned value is stored and used immediately
+  on the next start. To make sure a late response is never assigned to the
+  wrong value, the program waits for the full timeout after a failure and
+  clears the receive buffer. Home Assistant shows **Sendeabstand** (gap),
+  **Antwortzeit ALLPOOL** (response time) and **Wiederholungen** (retries)
+  under *Diagnostic*.
+- **Robust**: checksums (XOR as specified by PAUSCH), retries, automatic
+  reconnect to MQTT and the serial port. If the ALLPOOL stops answering (power
+  off, cable unplugged), the connection is reported as lost and the entities
+  become "unavailable" in Home Assistant. Waiting commands are kept until
+  `command_timeout` and executed after reconnecting.
+- Faulty temperature sensors (ALLPOOL answers `Xl`/`Xh`) show up as "unknown";
+  the reason is in the attributes.
 
-### Pinbelegung Extender-Port
+## Hardware: connecting the ALLPOOL to the Raspberry Pi
 
-<img src="docs/extender-port-pinbelegung.png" alt="Pinbelegung Extender-Port des ALLPOOL: M8-Buchse 3-polig, Pin 1 TXD, Pin 3 RXD, Pin 4 GND" width="420">
+On its right side the ALLPOOL has the **extender port**, a waterproof 3-pin
+**M8 socket**. It provides a serial interface with **5 V TTL levels** (not
+real RS232 with ±12 V). The easiest way to connect it is an **FTDI USB-TTL
+cable, 5 V version (TTL-232R-5V)** plus an M8 cable with plug. Ready-made
+solutions from PAUSCH are the **M8USB** cable (direct USB) and the **M8RS232**
+interface (real RS232 on DSUB-9).
 
-| Pin | Name | Richtung (vom ALLPOOL aus) | Aderfarbe im verwendeten Kabel |
+### Extender port pinout
+
+<img src="docs/extender-port-pinbelegung.png" alt="ALLPOOL extender port pinout: 3-pin M8 socket, pin 1 TXD, pin 3 RXD, pin 4 GND" width="420">
+
+| Pin | Name | Direction (seen from ALLPOOL) | Wire colour in the cable used |
 |---|---|---|---|
-| 1 | TXD | Ausgang | blau |
-| 3 | RXD | Eingang | braun |
-| 4 | GND | Masse | schwarz |
+| 1 | TXD | output | blue |
+| 3 | RXD | input | brown |
+| 4 | GND | ground | black |
 
-> **Achtung bei den Aderfarben:** Die Farben in der Tabelle gelten für das
-> hier verwendete Kabel. Bei handelsüblichen M8-Sensorkabeln ist es oft
-> genau umgekehrt (Pin 1 = braun, Pin 3 = blau, Pin 4 = schwarz). Verlass dich
-> daher auf die **Pin-Nummern** und prüfe dein Kabel vorher mit einem
-> Durchgangsprüfer.
+> **Careful with wire colours:** the colours in the table apply to the cable
+> used here. With standard M8 sensor cables it is often the other way round
+> (pin 1 = brown, pin 3 = blue, pin 4 = black). Go by the **pin numbers** and
+> check your cable with a continuity tester first.
 
-### FTDI-Kabel TTL-232R-5V
+### FTDI cable TTL-232R-5V
 
-| Pin am Stecker | Farbe | Signal | anschließen? |
+| Connector pin | Colour | Signal | Connect? |
 |---|---|---|---|
-| 1 | schwarz | GND | **ja** → ALLPOOL Pin 4 |
-| 2 | braun | CTS# | nein |
-| 3 | rot | VCC (+5 V aus USB) | **nein!** |
-| 4 | orange | TXD (Ausgang) | **ja** → ALLPOOL Pin 3 (RXD) |
-| 5 | gelb | RXD (Eingang) | **ja** → ALLPOOL Pin 1 (TXD) |
-| 6 | grün | RTS# | nein |
+| 1 | black | GND | **yes** → ALLPOOL pin 4 |
+| 2 | brown | CTS# | no |
+| 3 | red | VCC (+5 V from USB) | **no!** |
+| 4 | orange | TXD (output) | **yes** → ALLPOOL pin 3 (RXD) |
+| 5 | yellow | RXD (input) | **yes** → ALLPOOL pin 1 (TXD) |
+| 6 | green | RTS# | no |
 
-Datenblatt: [FTDI TTL-232R Kabel](https://ftdichip.com/wp-content/uploads/2023/07/DS_TTL-232R_CABLES.pdf)
-· [Produktseite TTL-232R-5V](https://ftdichip.com/products/ttl-232r-5v/)
+Datasheet: [FTDI TTL-232R cables](https://ftdichip.com/wp-content/uploads/2023/07/DS_TTL-232R_CABLES.pdf)
+· [Product page TTL-232R-5V](https://ftdichip.com/products/ttl-232r-5v/)
 
-### Verdrahtung
+### Wiring
 
-![Anschlussplan ALLPOOL Extender-Port an FTDI TTL-232R-5V](docs/anschluss-allpool-ftdi.svg)
+![Wiring ALLPOOL extender port to FTDI TTL-232R-5V](docs/wiring-allpool-ftdi.svg)
 
-- **TXD und RXD werden gekreuzt**: Was das ALLPOOL sendet (TXD), muss das
-  FTDI-Kabel empfangen (RXD) und umgekehrt.
-- **Rot (+5 V) nicht anschließen.** Das ALLPOOL hat seine eigene
-  Stromversorgung. Die nicht benutzten Adern (rot, braun, grün) einzeln
-  isolieren.
-- Andere USB-TTL-Adapter (CH340, CP2102, PL2303) funktionieren auch, wenn sie
-  **5-V-Pegel** haben. Ein 3,3-V-Adapter oder ein RS232-Adapter mit
-  DSUB-9-Stecker ist **nicht** geeignet bzw. kann die Schnittstelle beschädigen.
+- **TXD and RXD are crossed**: what the ALLPOOL transmits (TXD) must be
+  received by the FTDI cable (RXD), and vice versa.
+- **Do not connect red (+5 V).** The ALLPOOL has its own power supply.
+  Insulate the unused wires (red, brown, green) separately.
+- Other USB-TTL adapters (CH340, CP2102, PL2303) work too, as long as they use
+  **5 V levels**. A 3.3 V adapter or an RS232 adapter with a DSUB-9 plug is
+  **not** suitable and may damage the interface.
 
-### Prüfen am Raspberry Pi
+### Checking on the Raspberry Pi
 
-Nach dem Einstecken sollte das Kabel erkannt werden:
+After plugging in, the cable should be detected:
 
 ```bash
-dmesg | grep -i -E "ftdi|ttyUSB"     # z.B. "FTDI USB Serial Device converter now attached to ttyUSB0"
-ls -l /dev/serial/by-id/              # z.B. usb-FTDI_TTL232R_FTxxxxxx-if00-port0 -> ../../ttyUSB0
+dmesg | grep -i -E "ftdi|ttyUSB"     # e.g. "FTDI USB Serial Device converter now attached to ttyUSB0"
+ls -l /dev/serial/by-id/              # e.g. usb-FTDI_TTL232R_FTxxxxxx-if00-port0 -> ../../ttyUSB0
 ```
 
-Trag den Pfad aus `/dev/serial/by-id/` in `config.yaml` unter `serial.port`
-ein. Er bleibt gleich, auch wenn später weitere USB-Geräte dazukommen. Bekommt
-`allpool-mqtt --dump` keine Antwort, sind meistens TXD und RXD vertauscht.
+Put the path from `/dev/serial/by-id/` into `config.yaml` as `serial.port`.
+It stays the same even if more USB devices are added later. If
+`allpool-mqtt --dump` gets no response, TXD and RXD are usually swapped.
 
-## Installation auf dem Raspberry Pi
+## Installation on the Raspberry Pi
 
-Voraussetzung: Raspberry Pi OS (oder ein anderes Debian-basiertes Linux) mit
-Netzwerkzugang, der USB-Seriell-Adapter steckt am Pi und am Extender-Port des
-ALLPOOL.
+Requirements: Raspberry Pi OS (or another Debian-based Linux) with network
+access; the USB serial adapter is connected to the Pi and to the ALLPOOL's
+extender port.
 
-Per SSH auf dem Pi anmelden und:
+Log in to the Pi via SSH and run:
 
 ```bash
 sudo apt update && sudo apt install -y git
 git clone https://github.com/mkropa/allpool-mqtt.git
 cd allpool-mqtt
 sudo ./install.sh
-sudo nano /etc/allpool-mqtt/config.yaml     # MQTT-Broker, Benutzer, Passwort, Port
+sudo nano /etc/allpool-mqtt/config.yaml     # MQTT broker, user, password, serial port
 ```
 
-`install.sh` legt einen Systembenutzer `allpool` an, installiert das Programm
-nach `/opt/allpool-mqtt` (mit eigener Python-Umgebung), kopiert die
-Beispielkonfiguration nach `/etc/allpool-mqtt/config.yaml` und richtet den
-systemd-Dienst `allpool-mqtt` ein. Der heruntergeladene Ordner
-`~/allpool-mqtt` dient danach nur noch als Quelle für Updates.
+`install.sh` creates a system user `allpool`, installs the program to
+`/opt/allpool-mqtt` (with its own Python environment), copies the example
+configuration to `/etc/allpool-mqtt/config.yaml` and sets up the systemd
+service `allpool-mqtt`. The downloaded folder `~/allpool-mqtt` is then only
+used as the source for updates.
 
-Vor dem ersten Start lohnt sich ein direkter Test ohne MQTT:
+Before the first start, a direct test without MQTT is worthwhile:
 
 ```bash
-ls -l /dev/serial/by-id/             # Pfad des USB-Seriell-Adapters
-sudo allpool-mqtt --dump             # liest alle aktiven Werte einmal
-sudo allpool-mqtt --dump-all         # auch deaktivierte (zeigt, was deine FW kann)
-sudo allpool-mqtt --raw "42020?h"    # einzelner Rohbefehl
+ls -l /dev/serial/by-id/             # path of the USB serial adapter
+sudo allpool-mqtt --dump             # reads all active values once
+sudo allpool-mqtt --dump-all         # also disabled ones (shows what your firmware supports)
+sudo allpool-mqtt --raw "42020?h"    # single raw command
 ```
 
-Dann den Dienst starten (er startet ab jetzt bei jedem Booten automatisch):
+Then start the service (from now on it starts automatically at every boot):
 
 ```bash
 sudo systemctl start allpool-mqtt
 journalctl -u allpool-mqtt -f
 ```
 
-> `--dump` und `--raw` öffnen die serielle Schnittstelle selbst. Läuft der
-> Dienst schon, vorher `sudo systemctl stop allpool-mqtt`.
+> `--dump` and `--raw` open the serial port themselves. If the service is
+> already running, stop it first with `sudo systemctl stop allpool-mqtt`.
 
 ### Update
 
@@ -177,13 +179,13 @@ git pull
 sudo ./install.sh
 ```
 
-`install.sh` erkennt die bestehende Installation, aktualisiert Programm und
-Python-Pakete und startet den Dienst neu. Deine `/etc/allpool-mqtt/config.yaml`
-und die gelernten Werte (Abfrageintervalle, Sendeabstand) bleiben unverändert.
-Neue Einstellungen aus späteren Versionen stehen in `config.example.yaml`. Ohne
-Eintrag in deiner `config.yaml` gelten automatisch die Standardwerte.
+`install.sh` detects the existing installation, updates the program and Python
+packages and restarts the service. Your `/etc/allpool-mqtt/config.yaml` and
+the learned values (poll intervals, gap) are kept. New settings from later
+versions are listed in `config.example.yaml`; without an entry in your
+`config.yaml` the defaults apply automatically.
 
-### Deinstallation
+### Uninstall
 
 ```bash
 sudo systemctl disable --now allpool-mqtt
@@ -193,55 +195,55 @@ sudo systemctl daemon-reload
 sudo userdel allpool
 ```
 
-Die Entitäten in Home Assistant entfernst du danach unter *Einstellungen →
-Geräte & Dienste → MQTT → AllPool → Löschen*.
+Afterwards remove the entities in Home Assistant via *Settings → Devices &
+services → MQTT → AllPool → Delete*.
 
 ## Home Assistant
 
-1. Den MQTT-Broker einrichten, falls noch nicht vorhanden: Add-on **Mosquitto
-   broker** installieren und die Integration **MQTT** hinzufügen.
-2. Einen eigenen MQTT-Benutzer für die Bridge anlegen (siehe unten) und in
-   `/etc/allpool-mqtt/config.yaml` unter `mqtt:` eintragen.
-3. Dienst starten bzw. neu starten (`sudo systemctl restart allpool-mqtt`).
-   Im Log (`journalctl -u allpool-mqtt -f`) sollte „MQTT verbunden“ stehen.
-   Unter *Einstellungen → Geräte & Dienste → MQTT* erscheint dann das Gerät
-   **AllPool** mit allen Entitäten.
-4. Die alte SSH-/command_line-Integration (`allpool -a`, `allpool -f` …)
-   entfernen, damit nicht zwei Programme gleichzeitig auf die Schnittstelle
-   zugreifen.
+1. Set up the MQTT broker if you don't have one yet: install the **Mosquitto
+   broker** add-on and add the **MQTT** integration.
+2. Create a dedicated MQTT user for the bridge (see below) and enter it in
+   `/etc/allpool-mqtt/config.yaml` under `mqtt:`.
+3. Start or restart the service (`sudo systemctl restart allpool-mqtt`). The
+   log (`journalctl -u allpool-mqtt -f`) should show "MQTT verbunden" (MQTT
+   connected). The device **AllPool** with all its entities then appears under
+   *Settings → Devices & services → MQTT*.
+4. If you previously used another integration that accesses the serial port
+   (e.g. a command_line/SSH integration), remove it so that no two programs
+   use the port at the same time.
 
-### Eigener MQTT-Benutzer für die Bridge
+### Dedicated MQTT user for the bridge
 
-Mosquitto erlaubt beliebig viele Benutzer. Ein eigener Zugang nur für das
-ALLPOOL ist sinnvoll, bestehende Benutzer bleiben unverändert.
+Mosquitto supports any number of users. A separate login just for the ALLPOOL
+is a good idea; existing users stay unchanged.
 
-**Empfohlen: Login im Mosquitto-Add-on.** Das ist ein reiner MQTT-Zugang, mit
-dem man sich nicht in Home Assistant anmelden kann.
+**Recommended: a login in the Mosquitto add-on.** This is a pure MQTT login
+that cannot be used to sign in to Home Assistant.
 
-1. *Einstellungen → Add-ons → Mosquitto broker → Konfiguration*
-2. Unter **Logins** einen Eintrag ergänzen (vorhandene Einträge bleiben stehen):
+1. *Settings → Add-ons → Mosquitto broker → Configuration*
+2. Add an entry under **Logins** (existing entries stay as they are):
    ```yaml
    - username: allpool
-     password: EinLangesPasswort
+     password: ALongPassword
    ```
-3. Speichern und das Add-on **neu starten**.
+3. Save and **restart** the add-on.
 
-Alternativ akzeptiert Mosquitto auch jeden Home-Assistant-Benutzer
-(*Einstellungen → Personen → Benutzer*). Der könnte sich dann aber auch in
-die HA-Oberfläche einloggen, was für ein Gerät unnötig ist.
+Alternatively, Mosquitto also accepts any Home Assistant user (*Settings →
+People → Users*). That user could then also sign in to the Home Assistant UI,
+which a device does not need.
 
-Die Namen `homeassistant` und `addons` sind vom Add-on reserviert und dürfen
-nicht verwendet werden.
+The names `homeassistant` and `addons` are reserved by the add-on and must
+not be used.
 
-### Wo finde ich was?
+### Where to find what
 
-Die Abfrageintervalle findest du auf der Geräteseite unter **Konfiguration**,
-Warteschlange, Auslastung und Verbindungsstatus unter **Diagnose**.
+The poll intervals are on the device page under **Configuration**; queue,
+load and connection status are under **Diagnostic**.
 
-### Benachrichtigung bei Problemen (Beispiel-Automation)
+### Notification on problems (example automation)
 
 ```yaml
-alias: AllPool Meldungen
+alias: AllPool messages
 triggers:
   - trigger: mqtt
     topic: allpool/bridge/event
@@ -255,72 +257,75 @@ actions:
       message: "{{ trigger.payload_json.message }}"
 ```
 
-## MQTT-Topics
+## MQTT topics
 
-| Topic | Richtung | Inhalt |
+| Topic | Direction | Content |
 |---|---|---|
-| `allpool/<wert>/state` | → HA | aktueller Wert (retained) |
-| `allpool/<wert>/attributes` | → HA | `{"allpool_id", "raw", "error", "last_update"}` |
-| `allpool/<wert>/set` | ← HA | neuer Wert (z.B. `Auto`, `27.5`, `ON`, `24.12.26`) |
-| `allpool/<wert>/interval` | → HA | Abfrageintervall in s |
-| `allpool/<wert>/interval/set` | ← HA | neues Intervall |
-| `allpool/bridge/availability` | → HA | `online` / `offline` (Bridge läuft) |
-| `allpool/bridge/serial` | → HA | `online` / `offline` (ALLPOOL antwortet) |
-| `allpool/bridge/queue` | → HA | Einträge in der Warteschlange |
-| `allpool/bridge/load` | → HA | geschätzte Auslastung durch Polling in % |
+| `allpool/<value>/state` | → HA | current value (retained) |
+| `allpool/<value>/attributes` | → HA | `{"allpool_id", "raw", "error", "last_update"}` |
+| `allpool/<value>/set` | ← HA | new value (e.g. `Auto`, `27.5`, `ON`, `24.12.26`) |
+| `allpool/<value>/interval` | → HA | poll interval in s |
+| `allpool/<value>/interval/set` | ← HA | new interval |
+| `allpool/bridge/availability` | → HA | `online` / `offline` (bridge running) |
+| `allpool/bridge/serial` | → HA | `online` / `offline` (ALLPOOL answering) |
+| `allpool/bridge/queue` | → HA | entries in the queue |
+| `allpool/bridge/load` | → HA | estimated load caused by polling in % |
 | `allpool/bridge/timing` | → HA | `{gap_ms, learned_gap_ms, timeout_ms, latency_ms, requests, retries, …}` |
-| `allpool/bridge/last_message` | → HA | letzte Meldung (Text) |
-| `allpool/bridge/event` | → HA | jede Meldung als JSON `{level, message, key, status, position, …}` |
-| `allpool/bridge/refresh` | ← HA | alle Werte jetzt neu lesen |
-| `allpool/raw/request` | ← | Rohbefehl: `2010?`, `42020?h` oder `{"id": 36020}` |
-| `allpool/raw/response` | → | Antwort darauf |
+| `allpool/bridge/last_message` | → HA | last message (text) |
+| `allpool/bridge/event` | → HA | every message as JSON `{level, message, key, status, position, …}` |
+| `allpool/bridge/refresh` | ← HA | read all values now |
+| `allpool/raw/request` | ← | raw command: `2010?`, `42020?h` or `{"id": 36020}` |
+| `allpool/raw/response` | → | its response |
 
-Schreibende Rohbefehle (`{"id": 42020, "value": "27.0"}`) gehen erst nach
+Writing raw commands (`{"id": 42020, "value": "27.0"}`) only works with
 `allow_raw_write: true`.
 
-## Werte
+## Values
 
-`allpool-mqtt --list` zeigt die Tabelle mit Schlüssel, ID, Typ,
-Standardintervall und ob der Wert aktiv ist. In `config.yaml` unter `values:`
-kannst du jeden Wert ein- oder ausschalten, umbenennen oder eigene IDs ergänzen.
+`allpool-mqtt --list` shows the table with key, ID, type, default interval and
+whether the value is active. In `config.yaml` under `values:` you can enable or
+disable each value, rename it or add your own IDs.
 
-Betriebsarten (Alternativen laut PAUSCH, beginnend bei 1):
+Operating modes (alternatives as defined by PAUSCH, starting at 1):
 
-| ID | Wert | 1 | 2 | 3 |
+| ID | Value | 1 | 2 | 3 |
 |---|---|---|---|---|
-| 30010 | System | Auto | Aus | – |
-| 33010 | Filter | Auto | Aus | Hand (Ein) |
-| 33011 | Whirlpool | Auto | Aus | Hand |
-| 39010 | Rückspülung | Auto | Aus | Start |
-| 42010 | Heizung | Auto | Aus | Hand |
-| 45010 | Solar | Auto | Aus | Hand |
-| 48010 | Nachfüllen | Nein | Ja | – |
+| 30010 | System | Auto | Aus (off) | – |
+| 33010 | Filter | Auto | Aus (off) | Hand (on) |
+| 33011 | Whirlpool | Auto | Aus (off) | Hand (on) |
+| 39010 | Backwash | Auto | Aus (off) | Start |
+| 42010 | Heating | Auto | Aus (off) | Hand (on) |
+| 45010 | Solar | Auto | Aus (off) | Hand (on) |
+| 48010 | Refill | Nein (no) | Ja (yes) | – |
 
-## Was du am echten Gerät prüfen solltest
+The option labels in Home Assistant are the German ones shown above.
 
-- **1100 Rückspülung Zustand**: PAUSCH schreibt "Bits: 0=Filtern …", der Bereich
-  ist aber 0–3. Ich zeige die Zahl als Zustand an, wie dein altes Skript. Kommen
-  andere Zahlen, erscheint die Rohzahl.
-- **30030 / 30031**: Laut Protokolltabelle "min./max. Badtemperatur während
-  Ferien", laut Menüstruktur "Im Urlaub konv. heizen bis" bzw. "solar heizen
-  bis". Ich habe die Namen aus der Menüstruktur verwendet.
-- **Universalausgänge** lassen sich nur schalten, wenn sie am ALLPOOL auf
-  *Funktion / Händisch* stehen. Sonst kommt eine verständliche Fehlermeldung.
-- **Werte aus der Menüstruktur** (Statistik, 48020 Bad füllen): einmal mit
-  `allpool-mqtt --dump-all` prüfen, was deine Firmware liefert, und dann
-  gezielt aktivieren.
+## Notes on individual values
 
-## Testen ohne ALLPOOL
+- **1100 backwash state**: PAUSCH writes "Bits: 0=filtering …", but the range
+  is 0–3. The number is therefore shown as a state (0 = Filtern, 1 =
+  Nachspülen, 2 = Entleeren, 3 = Rückspülen). Other numbers are shown raw.
+- **30030 / 30031**: according to the protocol table "min./max. pool
+  temperature during holidays", according to the menu structure "heat
+  conventionally up to" / "heat with solar up to" during holidays. The names
+  from the menu structure are used.
+- **Universal outputs** can only be switched if they are set to *Funktion /
+  Händisch* (manual) on the ALLPOOL. Otherwise a clear error message is shown.
+- **Values from the menu structure** (statistics, 48020 pool filling): check
+  once with `allpool-mqtt --dump-all` what your firmware returns, then enable
+  them selectively.
 
-`tools/allpool_simulator.py` legt eine virtuelle serielle Schnittstelle an, die
-das Protokoll mit Prüfsummen und Fehlercodes nachbildet:
+## Testing without an ALLPOOL
+
+`tools/allpool_simulator.py` creates a virtual serial port that emulates the
+protocol including checksums and error codes:
 
 ```bash
 python3 tools/allpool_simulator.py --link /tmp/allpool-sim &
-# --min-gap 0.08: ignoriert Befehle, die < 80 ms nach der letzten Antwort
-#                 kommen (langsames ALLPOOL, zum Testen der Lernfunktion)
-# --quirks: Whirlpool-Modus bestätigt Schreiben, behält aber den alten Wert
-#           (zum Testen der Rückprüfung)
+# --min-gap 0.08: ignores commands arriving < 80 ms after the last response
+#                 (slow ALLPOOL, for testing the learning function)
+# --quirks: whirlpool mode confirms writes but keeps the old value
+#           (for testing the read-back check)
 # in config.yaml:  serial: {port: /tmp/allpool-sim}
-kill -USR1 %1     # Simulator antwortet nicht mehr / wieder ("stromlos")
+kill -USR1 %1     # simulator stops / resumes answering ("power off")
 ```
