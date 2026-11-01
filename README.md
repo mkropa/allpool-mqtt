@@ -200,13 +200,40 @@ Geräte & Dienste → MQTT → AllPool → Löschen*.
 
 1. Den MQTT-Broker einrichten, falls noch nicht vorhanden: Add-on **Mosquitto
    broker** installieren und die Integration **MQTT** hinzufügen.
-2. Einen eigenen HA-Benutzer für die Bridge anlegen (z.B. `allpool`). Den
-   trägst du in `config.yaml` unter `mqtt` ein.
-3. Dienst starten. Unter *Einstellungen → Geräte & Dienste → MQTT* erscheint
-   das Gerät **AllPool** mit allen Entitäten.
+2. Einen eigenen MQTT-Benutzer für die Bridge anlegen (siehe unten) und in
+   `/etc/allpool-mqtt/config.yaml` unter `mqtt:` eintragen.
+3. Dienst starten bzw. neu starten (`sudo systemctl restart allpool-mqtt`).
+   Im Log (`journalctl -u allpool-mqtt -f`) sollte „MQTT verbunden“ stehen.
+   Unter *Einstellungen → Geräte & Dienste → MQTT* erscheint dann das Gerät
+   **AllPool** mit allen Entitäten.
 4. Die alte SSH-/command_line-Integration (`allpool -a`, `allpool -f` …)
    entfernen, damit nicht zwei Programme gleichzeitig auf die Schnittstelle
    zugreifen.
+
+### Eigener MQTT-Benutzer für die Bridge
+
+Mosquitto erlaubt beliebig viele Benutzer. Ein eigener Zugang nur für das
+ALLPOOL ist sinnvoll, bestehende Benutzer bleiben unverändert.
+
+**Empfohlen: Login im Mosquitto-Add-on.** Das ist ein reiner MQTT-Zugang, mit
+dem man sich nicht in Home Assistant anmelden kann.
+
+1. *Einstellungen → Add-ons → Mosquitto broker → Konfiguration*
+2. Unter **Logins** einen Eintrag ergänzen (vorhandene Einträge bleiben stehen):
+   ```yaml
+   - username: allpool
+     password: EinLangesPasswort
+   ```
+3. Speichern und das Add-on **neu starten**.
+
+Alternativ akzeptiert Mosquitto auch jeden Home-Assistant-Benutzer
+(*Einstellungen → Personen → Benutzer*). Der könnte sich dann aber auch in
+die HA-Oberfläche einloggen, was für ein Gerät unnötig ist.
+
+Die Namen `homeassistant` und `addons` sind vom Add-on reserviert und dürfen
+nicht verwendet werden.
+
+### Wo finde ich was?
 
 Die Abfrageintervalle findest du auf der Geräteseite unter **Konfiguration**,
 Warteschlange, Auslastung und Verbindungsstatus unter **Diagnose**.

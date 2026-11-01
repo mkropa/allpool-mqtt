@@ -31,7 +31,7 @@ serial:
 mqtt:
   host: 192.168.1.10       # IP/Name deines MQTT-Brokers (z.B. Home Assistant mit Mosquitto-Add-on)
   port: 1883
-  username: allpool        # MQTT-Benutzer (in HA: Einstellungen > Personen > Benutzer anlegen)
+  username: allpool        # eigener MQTT-Benutzer (Mosquitto-Add-on > Konfiguration > Logins, siehe README)
   password: geheim
   client_id: allpool-mqtt
   base_topic: allpool      # alle Topics beginnen mit allpool/...
