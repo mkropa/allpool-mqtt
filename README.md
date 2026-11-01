@@ -63,6 +63,71 @@ keine YAML-Konfiguration schreiben.
 - Defekte Temperaturfühler (ALLPOOL antwortet `Xl`/`Xh`) erscheinen als
   "unbekannt", der Grund steht in den Attributen.
 
+## Hardware: ALLPOOL an den Raspberry Pi anschließen
+
+Das ALLPOOL hat auf der rechten Geräteseite den **Extender-Port**, eine
+wasserdichte, 3-polige **M8-Buchse**. Dort liegt eine serielle Schnittstelle mit
+**TTL-Pegel 5 V** (kein echtes RS232 mit ±12 V). Am einfachsten verbindest du
+sie mit einem **FTDI USB-TTL-Kabel in der 5-V-Ausführung (TTL-232R-5V)** und
+einem M8-Kabel mit Stecker. Fertige Lösungen von PAUSCH sind das Kabel
+**M8USB** (direkt USB) und das Interface **M8RS232** (echtes RS232 auf DSUB-9).
+
+### Pinbelegung Extender-Port
+
+<img src="docs/extender-port-pinbelegung.png" alt="Pinbelegung Extender-Port des ALLPOOL: M8-Buchse 3-polig, Pin 1 TXD, Pin 3 RXD, Pin 4 GND" width="420">
+
+| Pin | Name | Richtung (vom ALLPOOL aus) | Aderfarbe im verwendeten Kabel |
+|---|---|---|---|
+| 1 | TXD | Ausgang | blau |
+| 3 | RXD | Eingang | braun |
+| 4 | GND | Masse | schwarz |
+
+> **Achtung bei den Aderfarben:** Die Farben in der Tabelle gelten für das
+> hier verwendete Kabel. Bei handelsüblichen M8-Sensorkabeln ist es oft
+> genau umgekehrt (Pin 1 = braun, Pin 3 = blau, Pin 4 = schwarz). Verlass dich
+> daher auf die **Pin-Nummern** und prüfe dein Kabel vorher mit einem
+> Durchgangsprüfer.
+
+### FTDI-Kabel TTL-232R-5V
+
+| Pin am Stecker | Farbe | Signal | anschließen? |
+|---|---|---|---|
+| 1 | schwarz | GND | **ja** → ALLPOOL Pin 4 |
+| 2 | braun | CTS# | nein |
+| 3 | rot | VCC (+5 V aus USB) | **nein!** |
+| 4 | orange | TXD (Ausgang) | **ja** → ALLPOOL Pin 3 (RXD) |
+| 5 | gelb | RXD (Eingang) | **ja** → ALLPOOL Pin 1 (TXD) |
+| 6 | grün | RTS# | nein |
+
+Datenblatt: [FTDI TTL-232R Kabel](https://ftdichip.com/wp-content/uploads/2023/07/DS_TTL-232R_CABLES.pdf)
+· [Produktseite TTL-232R-5V](https://ftdichip.com/products/ttl-232r-5v/)
+
+### Verdrahtung
+
+![Anschlussplan ALLPOOL Extender-Port an FTDI TTL-232R-5V](docs/anschluss-allpool-ftdi.svg)
+
+- **TXD und RXD werden gekreuzt**: Was das ALLPOOL sendet (TXD), muss das
+  FTDI-Kabel empfangen (RXD) und umgekehrt.
+- **Rot (+5 V) nicht anschließen.** Das ALLPOOL hat seine eigene
+  Stromversorgung. Die nicht benutzten Adern (rot, braun, grün) einzeln
+  isolieren.
+- Andere USB-TTL-Adapter (CH340, CP2102, PL2303) funktionieren auch, wenn sie
+  **5-V-Pegel** haben. Ein 3,3-V-Adapter oder ein RS232-Adapter mit
+  DSUB-9-Stecker ist **nicht** geeignet bzw. kann die Schnittstelle beschädigen.
+
+### Prüfen am Raspberry Pi
+
+Nach dem Einstecken sollte das Kabel erkannt werden:
+
+```bash
+dmesg | grep -i -E "ftdi|ttyUSB"     # z.B. "FTDI USB Serial Device converter now attached to ttyUSB0"
+ls -l /dev/serial/by-id/              # z.B. usb-FTDI_TTL232R_FTxxxxxx-if00-port0 -> ../../ttyUSB0
+```
+
+Trag den Pfad aus `/dev/serial/by-id/` in `config.yaml` unter `serial.port`
+ein. Er bleibt gleich, auch wenn später weitere USB-Geräte dazukommen. Bekommt
+`allpool-mqtt --dump` keine Antwort, sind meistens TXD und RXD vertauscht.
+
 ## Installation auf dem Raspberry Pi
 
 Voraussetzung: Raspberry Pi OS (oder ein anderes Debian-basiertes Linux) mit
@@ -84,13 +149,6 @@ nach `/opt/allpool-mqtt` (mit eigener Python-Umgebung), kopiert die
 Beispielkonfiguration nach `/etc/allpool-mqtt/config.yaml` und richtet den
 systemd-Dienst `allpool-mqtt` ein. Der heruntergeladene Ordner
 `~/allpool-mqtt` dient danach nur noch als Quelle für Updates.
-
-> **Privates Repository?** Dann fragt `git clone` nach Benutzername und
-> Passwort. Als Passwort brauchst du einen *Personal Access Token*
-> (GitHub → Settings → Developer settings → Personal access tokens →
-> Fine-grained tokens, Zugriff nur auf dieses Repository, Berechtigung
-> *Contents: Read-only*). Damit Git ihn sich merkt:
-> `git config --global credential.helper store` vor dem Clonen ausführen.
 
 Vor dem ersten Start lohnt sich ein direkter Test ohne MQTT:
 

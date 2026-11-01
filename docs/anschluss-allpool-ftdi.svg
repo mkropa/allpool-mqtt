@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 400" width="780" height="400" font-family="Helvetica, Arial, sans-serif">
+  <title>Anschluss ALLPOOL Extender-Port an FTDI TTL-232R-5V</title>
+  <!-- eigener Hintergrund, damit es im hellen und dunklen GitHub-Design lesbar ist -->
+  <rect x="0" y="0" width="780" height="400" rx="12" fill="#ffffff" stroke="#d0d7de"/>
+
+  <text x="30" y="38" font-size="20" font-weight="bold" fill="#1f2328">ALLPOOL Extender-Port  →  FTDI USB-TTL-Kabel (5 V)</text>
+  <text x="30" y="60" font-size="13" fill="#57606a">19200 Baud, 8N1 · TTL-Pegel 5 V · TXD und RXD werden gekreuzt · nur 3 Adern verbinden</text>
+
+  <!-- ===== ALLPOOL M8-Buchse ===== -->
+  <text x="125" y="98" font-size="15" font-weight="bold" fill="#1f2328" text-anchor="middle">ALLPOOL</text>
+  <text x="125" y="116" font-size="12" fill="#57606a" text-anchor="middle">M8-Buchse, 3-polig</text>
+  <polygon points="65,215 95,163 155,163 185,215 155,267 95,267" fill="#d6ecfa" stroke="#7aa7c7" stroke-width="1.5"/>
+  <circle cx="125" cy="215" r="44" fill="#ffffff" stroke="#9aa4ad" stroke-width="2"/>
+  <circle cx="125" cy="190" r="9" fill="#1f2328"/>
+  <circle cx="104" cy="226" r="9" fill="#1f2328"/>
+  <circle cx="146" cy="226" r="9" fill="#1f2328"/>
+  <text x="125" y="173" font-size="12" text-anchor="middle" fill="#1f2328">4</text>
+  <text x="96" y="250" font-size="12" text-anchor="middle" fill="#1f2328">1</text>
+  <text x="154" y="250" font-size="12" text-anchor="middle" fill="#1f2328">3</text>
+
+  <!-- Pin-Beschriftungen ALLPOOL -->
+  <g font-size="14" fill="#1f2328">
+    <text x="215" y="145" font-weight="bold">Pin 1</text><text x="262" y="145">TXD (Ausgang)</text>
+    <text x="215" y="220" font-weight="bold">Pin 3</text><text x="262" y="220">RXD (Eingang)</text>
+    <text x="215" y="295" font-weight="bold">Pin 4</text><text x="262" y="295">GND</text>
+  </g>
+
+  <!-- Verbindungen (gekreuzt) -->
+  <g stroke-width="4" fill="none" stroke-linecap="round">
+    <!-- Pin1 TXD -> gelb RXD -->
+    <path d="M370,140 C450,140 470,249 560,249" stroke="#e3b600"/>
+    <!-- Pin3 RXD -> orange TXD -->
+    <path d="M370,215 C450,215 470,218 560,218" stroke="#f28c18"/>
+    <!-- Pin4 GND -> schwarz GND -->
+    <path d="M370,290 C450,290 470,125 560,125" stroke="#1f2328"/>
+  </g>
+  <g fill="#1f2328">
+    <circle cx="370" cy="140" r="4"/><circle cx="370" cy="215" r="4"/><circle cx="370" cy="290" r="4"/>
+  </g>
+
+  <!-- ===== FTDI-Kabel ===== -->
+  <text x="660" y="98" font-size="15" font-weight="bold" fill="#1f2328" text-anchor="middle">FTDI TTL-232R-5V</text>
+  <rect x="560" y="108" width="200" height="196" rx="6" fill="#f6f8fa" stroke="#d0d7de"/>
+  <g font-size="13">
+    <rect x="572" y="117" width="16" height="16" rx="3" fill="#1f2328" opacity="1"/>
+    <text x="596" y="130" fill="#1f2328"><tspan font-weight="bold">schwarz</tspan>  1  GND</text>
+    <rect x="572" y="148" width="16" height="16" rx="3" fill="#8b4a1c" opacity="0.35"/>
+    <text x="596" y="161" fill="#8c959f">braun  2  CTS# – frei</text>
+    <rect x="572" y="179" width="16" height="16" rx="3" fill="#d1242f" opacity="0.35"/>
+    <text x="596" y="192" fill="#8c959f">rot  3  VCC +5 V – frei!</text>
+    <rect x="572" y="210" width="16" height="16" rx="3" fill="#f28c18" opacity="1"/>
+    <text x="596" y="223" fill="#1f2328"><tspan font-weight="bold">orange</tspan>  4  TXD</text>
+    <rect x="572" y="241" width="16" height="16" rx="3" fill="#e3b600" opacity="1"/>
+    <text x="596" y="254" fill="#1f2328"><tspan font-weight="bold">gelb</tspan>  5  RXD</text>
+    <rect x="572" y="272" width="16" height="16" rx="3" fill="#1a7f37" opacity="0.35"/>
+    <text x="596" y="285" fill="#8c959f">grün  6  RTS# – frei</text>
+  </g>
+
+  <!-- Hinweise -->
+  <g font-size="12.5" fill="#1f2328">
+    <text x="30" y="338">ALLPOOL TXD (Pin 1) → FTDI RXD (gelb) · ALLPOOL RXD (Pin 3) → FTDI TXD (orange) · GND (Pin 4) → GND (schwarz)</text>
+    <text x="30" y="360" fill="#cf222e">Rot (+5 V), braun (CTS#) und grün (RTS#) nicht anschließen, Enden einzeln isolieren.</text>
+    <text x="30" y="382" fill="#57606a">Pin-Nummern zählen, nicht Aderfarben: braun hat am M8-Kabel und am FTDI-Kabel verschiedene Bedeutungen.</text>
+  </g>
+</svg>
