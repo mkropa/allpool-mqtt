@@ -161,12 +161,16 @@ sudo allpool-mqtt --dump-all         # auch deaktivierte (zeigt, was deine FW ka
 sudo allpool-mqtt --raw "42020?h"    # einzelner Rohbefehl
 ```
 
-Dann den Dienst starten (er startet ab jetzt bei jedem Booten automatisch):
+Dann den Dienst starten:
 
 ```bash
 sudo systemctl start allpool-mqtt
 journalctl -u allpool-mqtt -f
 ```
+
+Ein `systemctl enable` ist nicht nötig, das hat `install.sh` bereits erledigt:
+Der Dienst startet ab jetzt bei jedem Booten automatisch. Prüfen lässt sich
+das mit `systemctl is-enabled allpool-mqtt` (Ausgabe: `enabled`).
 
 > `--dump` und `--raw` öffnen die serielle Schnittstelle selbst. Läuft der
 > Dienst schon, vorher `sudo systemctl stop allpool-mqtt`.

@@ -161,12 +161,16 @@ sudo allpool-mqtt --dump-all         # also disabled ones (shows what your firmw
 sudo allpool-mqtt --raw "42020?h"    # single raw command
 ```
 
-Then start the service (from now on it starts automatically at every boot):
+Then start the service:
 
 ```bash
 sudo systemctl start allpool-mqtt
 journalctl -u allpool-mqtt -f
 ```
+
+No `systemctl enable` is needed, `install.sh` has already done that: from now
+on the service starts automatically at every boot. You can check this with
+`systemctl is-enabled allpool-mqtt` (output: `enabled`).
 
 > `--dump` and `--raw` open the serial port themselves. If the service is
 > already running, stop it first with `sudo systemctl stop allpool-mqtt`.
